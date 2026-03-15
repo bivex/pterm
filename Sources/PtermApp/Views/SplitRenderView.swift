@@ -239,6 +239,8 @@ extension SplitRenderView: MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        TracyProfiler.pushZone("SplitRenderView.draw")
+        defer { TracyProfiler.popZone() }
         idleBufferReleaseTimer?.invalidate()
         idleBufferReleaseTimer = nil
         guard !cellRefs.isEmpty,

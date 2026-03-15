@@ -10,7 +10,16 @@ import Metal
 /// for CJK characters (delegated to Core Text's font cascade).
 final class GlyphAtlas {
     /// Metal texture containing rasterized glyphs
-    private(set) var texture: MTLTexture?
+    private(set) var texture: MTLTexture? {
+        didSet {
+            if let old = oldValue {
+                TracyProfiler.reportFreeNamed(
+                    Unmanaged.passUnretained(old).toOpaque(),
+                    name: "GlyphAtlasTexture"
+                )
+            }
+        }
+    }
 
     /// Atlas dimensions (terminal points, before Retina scaling).
     private let initialAtlasDimension: Int
@@ -150,6 +159,14 @@ final class GlyphAtlas {
         descriptor.storageMode = device.hasUnifiedMemory ? .shared : .managed
 
         texture = device.makeTexture(descriptor: descriptor)
+        if let tex = texture {
+            let texBytes = descriptor.width * descriptor.height  // r8Unorm = 1 byte/pixel
+            TracyProfiler.reportAllocNamed(
+                Unmanaged.passUnretained(tex).toOpaque(),
+                size: texBytes,
+                name: "GlyphAtlasTexture"
+            )
+        }
     }
 
     private func ensureAtlasTexture() {
@@ -173,6 +190,8 @@ final class GlyphAtlas {
     /// Rasterize a single glyph and add it to the atlas.
     @discardableResult
     private func rasterizeGlyph(codepoint: UInt32, allowAtlasGrowth: Bool) -> GlyphInfo? {
+        TracyProfiler.pushZone("rasterizeGlyph")
+        defer { TracyProfiler.popZone() }
         guard let scalar = Unicode.Scalar(codepoint) else { return nil }
 
         // Get glyph from Core Text (handles font fallback for CJK automatically)

@@ -88,6 +88,7 @@ final class ScrollbackBuffer {
             }
         }
         if let buf = serializeBuf {
+            TracyProfiler.reportFreeNamed(UnsafeRawPointer(buf), name: "ScrollbackSerializeBuf")
             buf.deallocate()
         }
     }
@@ -96,6 +97,8 @@ final class ScrollbackBuffer {
 
     /// Append a row of cells to the scrollback buffer.
     func appendRow(_ cells: ArraySlice<Cell>, isWrapped: Bool) {
+        TracyProfiler.pushZone("ScrollbackBuffer.appendRow")
+        defer { TracyProfiler.popZone() }
         guard let rb = ringBuffer else { return }
 
         let cellCount = cells.count
@@ -179,6 +182,8 @@ final class ScrollbackBuffer {
 
     @discardableResult
     func getRow(at rowIndex: Int, into destination: inout [Cell]) -> Bool {
+        TracyProfiler.pushZone("ScrollbackBuffer.getRow")
+        defer { TracyProfiler.popZone() }
         guard let rb = ringBuffer else {
             destination.removeAll(keepingCapacity: true)
             return false
@@ -285,16 +290,24 @@ final class ScrollbackBuffer {
     }
 
     private func releaseSerializationBuffer() {
-        serializeBuf?.deallocate()
-        serializeBuf = nil
+        if let buf = serializeBuf {
+            TracyProfiler.reportFreeNamed(UnsafeRawPointer(buf), name: "ScrollbackSerializeBuf")
+            buf.deallocate()
+            serializeBuf = nil
+        }
         serializeBufCapacity = 0
     }
 
     private func resizeSerializationBuffer(requiredByteCount: Int) {
         let targetCapacity = Self.recommendedSerializationBufferCapacity(for: requiredByteCount)
         guard targetCapacity != serializeBufCapacity else { return }
-        serializeBuf?.deallocate()
-        serializeBuf = .allocate(capacity: targetCapacity)
+        if let old = serializeBuf {
+            TracyProfiler.reportFreeNamed(UnsafeRawPointer(old), name: "ScrollbackSerializeBuf")
+            old.deallocate()
+        }
+        let newBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: targetCapacity)
+        TracyProfiler.reportAllocNamed(UnsafeRawPointer(newBuf), size: targetCapacity, name: "ScrollbackSerializeBuf")
+        serializeBuf = newBuf
         serializeBufCapacity = targetCapacity
     }
 

@@ -467,7 +467,8 @@ final class TerminalController {
 
     /// Send user keyboard input to the PTY.
     func sendInput(_ data: Data) {
-        let _ = TracyProfiler.Zone(name: "sendInput")
+        TracyProfiler.pushZone("sendInput")
+        defer { TracyProfiler.popZone() }
 
         suppressScrollbackClear = false
         callbackLock.withLock {
@@ -531,7 +532,8 @@ final class TerminalController {
     }
 
     private func processPTYOutput(_ data: Data, recordAudit: Bool) {
-        let _ = TracyProfiler.Zone(name: "processPTYOutput")
+        TracyProfiler.pushZone("processPTYOutput")
+        defer { TracyProfiler.popZone() }
 
         cancelPendingScrollbackCompaction()
         if recordAudit {
@@ -585,7 +587,8 @@ final class TerminalController {
     // MARK: - Resize
 
     func resize(rows: Int, cols: Int) {
-        let _ = TracyProfiler.Zone(name: "resize")
+        TracyProfiler.pushZone("resize")
+        defer { TracyProfiler.popZone() }
 
         let (oldRows, oldCols) = lock.withWriteLock { () -> (Int, Int) in
             let oldRows = model.rows

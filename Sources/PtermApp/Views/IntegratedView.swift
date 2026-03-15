@@ -2433,6 +2433,8 @@ extension IntegratedView: MTKViewDelegate {
     }
 
     func draw(in view: MTKView) {
+        TracyProfiler.pushZone("IntegratedView.draw")
+        defer { TracyProfiler.popZone() }
         guard let drawable = view.currentDrawable,
               let renderPassDescriptor = view.currentRenderPassDescriptor,
               let commandBuffer = renderer.commandQueue.makeCommandBuffer() else {

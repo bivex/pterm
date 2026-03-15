@@ -354,7 +354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = TracyProfiler.initialize()
 
         // Track app startup time
-        let _ = TracyProfiler.Zone(name: "AppStartup")
+        TracyProfiler.pushZone("AppStartup")
+        defer { TracyProfiler.popZone() }
 
         if !isNoteEditorSelfTestEnabled {
             do {

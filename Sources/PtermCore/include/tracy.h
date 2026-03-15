@@ -37,17 +37,12 @@ void tracy_mem_free_n(const void* ptr, const char* name);
 // Get current heap usage in bytes
 size_t tracy_get_heap_usage(void);
 
-// Zone profiling: begin a scoped zone (returns context pointer)
-void* tracy_zone_begin(const char* name, const char* function, uint32_t line);
+// Zone profiling: push a zone onto the thread-local stack.
+// Pair with tracy_zone_pop() — use Swift defer for automatic cleanup.
+void tracy_zone_push(const char* name, const char* function, uint32_t line);
 
-// Zone profiling: end a specific zone by context
-void tracy_zone_end(void* ctx);
-
-// Zone profiling: end the current zone (simplified)
-void tracy_zone_end_current(void);
-
-// Zone profiling: begin a named zone (simplified version)
-void* tracy_zone_begin_named(const char* zoneName);
+// Zone profiling: pop the innermost zone from the thread-local stack.
+void tracy_zone_pop(void);
 
 #ifdef __cplusplus
 }

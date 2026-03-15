@@ -21,10 +21,11 @@ extern void ___tracy_emit_memory_free(const void* ptr, int secure);
 extern void ___tracy_emit_memory_alloc_callstack(const void* ptr, size_t size, int depth, int secure);
 extern void ___tracy_emit_memory_free_callstack(const void* ptr, int depth, int secure);
 
-// Zone functions
+// Zone functions — Tracy defines TracyCZoneCtx as struct { uint32_t id; }
+typedef struct { uint32_t id; } TZoneCtx;
 extern uint64_t ___tracy_alloc_srcloc(uint32_t line, const char* source, size_t sourceSz, const char* function, size_t functionSz, uint32_t color);
-extern void* ___tracy_emit_zone_begin_alloc(uint64_t srcloc, int active);
-extern void ___tracy_emit_zone_end(void* ctx);
+extern TZoneCtx ___tracy_emit_zone_begin_alloc(uint64_t srcloc, int active);
+extern void ___tracy_emit_zone_end(TZoneCtx ctx);
 
 static int tracy_initialized = 0;
 
@@ -74,56 +75,29 @@ void tracy_mem_free_n(const void* ptr, const char* name) {
 }
 
 size_t tracy_get_heap_usage(void) {
-    // Tracy doesn't expose a direct API to get current heap usage
-    // This would need to be tracked separately
     return 0;
 }
 
-// Zone tracking - Tracy handles zone context internally
-#include <pthread.h>
+// Thread-local zone push/pop stack
+// Each Swift call site does: tracy_zone_push(...); defer { tracy_zone_pop(); }
+// C calls inside defer are opaque to Swift's ARC optimizer and cannot be elided.
 
-// Thread-local zone context for proper nesting
-static __thread void* tracy_current_zone_ctx = NULL;
+#define TRACY_ZONE_STACK_DEPTH 128
+static __thread TZoneCtx tracy_zone_stack[TRACY_ZONE_STACK_DEPTH];
+static __thread int tracy_zone_depth = 0;
 
-void* tracy_zone_begin(const char* name, const char* function, uint32_t line) {
-    if (!tracy_initialized) return NULL;
-
-    // Allocate source location for this zone
+void tracy_zone_push(const char* name, const char* function, uint32_t line) {
+    if (!tracy_initialized || tracy_zone_depth >= TRACY_ZONE_STACK_DEPTH) return;
     uint64_t srcloc = ___tracy_alloc_srcloc(
         line,
-        name,
-        __builtin_strlen(name),
-        function,
-        __builtin_strlen(function),
-        0  // color
+        name, __builtin_strlen(name),
+        function, __builtin_strlen(function),
+        0 /* color */
     );
-
-    // Begin the zone and get context
-    void* ctx = ___tracy_emit_zone_begin_alloc(srcloc, 1);
-    tracy_current_zone_ctx = ctx;
-    return ctx;
+    tracy_zone_stack[tracy_zone_depth++] = ___tracy_emit_zone_begin_alloc(srcloc, 1);
 }
 
-void tracy_zone_end(void* ctx) {
-    if (!tracy_initialized) return;
-    if (ctx != NULL) {
-        ___tracy_emit_zone_end(ctx);
-        if (tracy_current_zone_ctx == ctx) {
-            tracy_current_zone_ctx = NULL;
-        }
-    }
-}
-
-// Simplified version that ends the current zone
-void tracy_zone_end_current(void) {
-    if (!tracy_initialized) return;
-    if (tracy_current_zone_ctx != NULL) {
-        ___tracy_emit_zone_end(tracy_current_zone_ctx);
-        tracy_current_zone_ctx = NULL;
-    }
-}
-
-// Named zone helpers (returns context)
-void* tracy_zone_begin_named(const char* zoneName) {
-    return tracy_zone_begin(zoneName, "pterm_zone", 0);
+void tracy_zone_pop(void) {
+    if (!tracy_initialized || tracy_zone_depth <= 0) return;
+    ___tracy_emit_zone_end(tracy_zone_stack[--tracy_zone_depth]);
 }

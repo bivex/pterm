@@ -651,7 +651,8 @@ final class MetalRenderer {
                 transientTextOverlays: [TransientTextOverlay] = [],
                 suppressCursorBlink: Bool = false,
                 in view: MTKView) {
-        let _ = TracyProfiler.Zone(name: "MetalRender")
+        TracyProfiler.pushZone("MetalRender")
+        defer { TracyProfiler.popZone() }
 
         guard let drawable = view.currentDrawable,
               let renderPassDescriptor = view.currentRenderPassDescriptor,
@@ -772,6 +773,8 @@ final class MetalRenderer {
                                   transientTextOverlays: [TransientTextOverlay] = [],
                                   scaleFactor: Float,
                                   bufferSet: ViewBufferSet) -> VertexData {
+        TracyProfiler.pushZone("buildVertexData")
+        defer { TracyProfiler.popZone() }
         let vd = bufferSet.terminalVertexScratch
         vd.reset()
         var cachedGlyphs: [UInt32: GlyphAtlas.GlyphInfo] = [:]
@@ -1771,6 +1774,8 @@ final class MetalRenderer {
                          cellRect: NSRect,
                          scaleFactor: Float,
                          in view: MTKView) {
+        TracyProfiler.pushZone("renderSplitCell")
+        defer { TracyProfiler.popZone() }
         // Build vertex data at full size (positions relative to (0,0))
         let vd = buildVertexData(model: model, scrollback: scrollback, scrollOffset: scrollOffset,
                                  selection: selection, searchHighlight: searchHighlight,
