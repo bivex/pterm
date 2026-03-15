@@ -38,6 +38,20 @@ final class TerminalController {
         let endCol: Int
     }
 
+    /// A frozen snapshot of all state needed to render a viewport frame.
+    /// Captured under a brief read lock so that buildVertexData runs lock-free.
+    struct ViewportSnapshot {
+        let rows: Int
+        let cols: Int
+        let cursor: CursorState
+        let scrollOffset: Int
+        let scrollbackRowCount: Int
+        let grid: TerminalGrid
+        /// Pre-fetched visible scrollback rows (only populated when scrollOffset > 0).
+        let scrollbackRows: [[Cell]]
+        let scrollbackRowHasData: [Bool]
+    }
+
     /// Terminal model (grid + cursor + state)
     let model: TerminalModel
 
@@ -536,9 +550,11 @@ final class TerminalController {
         defer { TracyProfiler.popZone() }
 
         cancelPendingScrollbackCompaction()
+        TracyProfiler.pushZone("processPTY.auditLog")
         if recordAudit {
             auditLogger?.recordOutput(data)
         }
+        TracyProfiler.popZone()
         var clearedScrollback = false
         data.withUnsafeBytes { rawPtr in
             guard let ptr = rawPtr.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
@@ -546,16 +562,21 @@ final class TerminalController {
             }
             let count = rawPtr.count
 
+            TracyProfiler.pushZone("processPTY.writeLock")
             lock.withWriteLock {
                 ensureCodepointBufferCapacity(requiredCount: count)
+                TracyProfiler.pushZone("processPTY.decode")
                 let cpCount = textDecoder.decode(
                     UnsafeBufferPointer(start: ptr, count: count),
                     into: &codepointBuffer
                 )
+                TracyProfiler.popZone()
 
                 // Feed codepoints to VT parser (which updates the model)
                 if cpCount > 0 {
+                    TracyProfiler.pushZone("processPTY.vtFeed")
                     vt_parser_feed(&parser, codepointBuffer, cpCount)
+                    TracyProfiler.popZone()
                 }
 
                 if parserRequestedScrollbackClear {
@@ -570,8 +591,10 @@ final class TerminalController {
                     }
                 }
             }
+            TracyProfiler.popZone() // processPTY.writeLock
         }
 
+        TracyProfiler.pushZone("processPTY.scheduleCallbacks")
         let shouldReportOutputActivity = callbackLock.withLock {
             Date() >= outputActivitySuppressedUntil
         }
@@ -582,6 +605,7 @@ final class TerminalController {
             stateChange: clearedScrollback
         )
         scheduleScrollbackCompaction()
+        TracyProfiler.popZone()
     }
 
     // MARK: - Resize
@@ -701,6 +725,45 @@ final class TerminalController {
     func withViewport<T>(_ block: (TerminalModel, ScrollbackBuffer, Int) -> T) -> T {
         lock.withReadLock {
             block(model, scrollback, scrollOffset)
+        }
+    }
+
+    /// Capture a frozen snapshot of all viewport state under a brief read lock.
+    /// The caller can then run buildVertexData against the snapshot without holding any lock.
+    func snapshotViewport() -> ViewportSnapshot {
+        lock.withReadLock {
+            let rows = model.rows
+            let cols = model.cols
+            let sbCount = scrollback.rowCount
+            let offset = scrollOffset
+            let gridCopy = model.grid.snapshot()
+
+            var sbRows: [[Cell]] = []
+            var sbHasData: [Bool] = []
+            if offset > 0 {
+                sbRows = Array(repeating: [], count: rows)
+                sbHasData = Array(repeating: false, count: rows)
+                let firstAbsolute = max(0, sbCount - offset)
+                for viewRow in 0..<rows {
+                    let absRow = firstAbsolute + viewRow
+                    if absRow >= 0 && absRow < sbCount {
+                        var rowBuffer: [Cell] = []
+                        sbHasData[viewRow] = scrollback.getRow(at: absRow, into: &rowBuffer)
+                        sbRows[viewRow] = rowBuffer
+                    }
+                }
+            }
+
+            return ViewportSnapshot(
+                rows: rows,
+                cols: cols,
+                cursor: model.cursor,
+                scrollOffset: offset,
+                scrollbackRowCount: sbCount,
+                grid: gridCopy,
+                scrollbackRows: sbRows,
+                scrollbackRowHasData: sbHasData
+            )
         }
     }
 
