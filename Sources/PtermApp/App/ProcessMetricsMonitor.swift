@@ -40,7 +40,9 @@ final class ProcessMetricsMonitor {
             leeway: .nanoseconds(Int(leewayNanoseconds))
         )
         timer.setEventHandler { [weak self] in
-            self?.sample(pids: pidsProvider())
+            var pids: [pid_t] = []
+            DispatchQueue.main.sync { pids = pidsProvider() }
+            self?.sample(pids: pids)
         }
         self.timer = timer
         timer.resume()
