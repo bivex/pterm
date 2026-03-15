@@ -21,8 +21,8 @@ extern void ___tracy_emit_memory_free(const void* ptr, int secure);
 extern void ___tracy_emit_memory_alloc_callstack(const void* ptr, size_t size, int depth, int secure);
 extern void ___tracy_emit_memory_free_callstack(const void* ptr, int depth, int secure);
 
-// Zone functions — Tracy defines TracyCZoneCtx as struct { uint32_t id; }
-typedef struct { uint32_t id; } TZoneCtx;
+// Zone functions — TracyCZoneCtx is struct { uint32_t id; int32_t active; }
+typedef struct { uint32_t id; int32_t active; } TZoneCtx;
 extern uint64_t ___tracy_alloc_srcloc(uint32_t line, const char* source, size_t sourceSz, const char* function, size_t functionSz, uint32_t color);
 extern TZoneCtx ___tracy_emit_zone_begin_alloc(uint64_t srcloc, int active);
 extern void ___tracy_emit_zone_end(TZoneCtx ctx);
