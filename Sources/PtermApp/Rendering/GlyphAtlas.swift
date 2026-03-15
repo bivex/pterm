@@ -190,8 +190,6 @@ final class GlyphAtlas {
     /// Rasterize a single glyph and add it to the atlas.
     @discardableResult
     private func rasterizeGlyph(codepoint: UInt32, allowAtlasGrowth: Bool) -> GlyphInfo? {
-        TracyProfiler.pushZone("rasterizeGlyph")
-        defer { TracyProfiler.popZone() }
         guard let scalar = Unicode.Scalar(codepoint) else { return nil }
 
         // Get glyph from Core Text (handles font fallback for CJK automatically)
