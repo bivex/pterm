@@ -651,6 +651,8 @@ final class MetalRenderer {
                 transientTextOverlays: [TransientTextOverlay] = [],
                 suppressCursorBlink: Bool = false,
                 in view: MTKView) {
+        let _ = TracyProfiler.Zone(name: "MetalRender")
+
         guard let drawable = view.currentDrawable,
               let renderPassDescriptor = view.currentRenderPassDescriptor,
               let commandBuffer = commandQueue.makeCommandBuffer() else {

@@ -8,15 +8,21 @@ let package = Package(
         .macOS(.v13)
     ],
     targets: [
-        // C module: VT parser, ring buffer, UTF-8 decoder
+        // C module: VT parser, ring buffer, UTF-8 decoder, Tracy bridge
         .target(
             name: "PtermCore",
             path: "Sources/PtermCore",
             publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("include"),
+                .headerSearchPath("tracy"),  // Tracy public headers (symlink to ../../tracy/public/tracy)
+                .unsafeFlags(["-DTRACY_ENABLE", "-DTRACY_AUTOCAPTURE=1"]),
                 .unsafeFlags(["-Wall", "-Wextra", "-Werror", "-O2"], .when(configuration: .release)),
                 .unsafeFlags(["-Wall", "-Wextra", "-Werror", "-g"], .when(configuration: .debug))
+            ],
+            linkerSettings: [
+                .unsafeFlags(["-L/Volumes/External/Code/tracy/build", "-lTracyClient", "-lc++"]),
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "/Volumes/External/Code/tracy/build"])
             ]
         ),
         // Main Swift executable
@@ -26,6 +32,9 @@ let package = Package(
             path: "Sources/PtermApp",
             exclude: [
                 "Rendering/Shaders/terminal.metal"
+            ],
+            cSettings: [
+                .headerSearchPath("../PtermCore/include")
             ],
             swiftSettings: [
                 .unsafeFlags(["-O"], .when(configuration: .release))
@@ -38,7 +47,9 @@ let package = Package(
                 .linkedFramework("QuartzCore"),
                 .linkedFramework("Security"),
                 .linkedFramework("UserNotifications"),
-                .linkedFramework("AVFoundation")
+                .linkedFramework("AVFoundation"),
+                .unsafeFlags(["-L/Volumes/External/Code/tracy/build", "-lTracyClient", "-lc++"]),
+                .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "/Volumes/External/Code/tracy/build"])
             ]
         ),
         // C module tests

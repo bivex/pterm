@@ -1,0 +1,8 @@
+module PtermCore {
+    header "pterm_core.h"
+    header "ring_buffer.h"
+    header "utf8_decoder.h"
+    header "vt_parser.h"
+    header "tracy.h"
+    export *
+}

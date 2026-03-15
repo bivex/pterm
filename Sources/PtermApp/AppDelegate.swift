@@ -349,6 +349,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Initialize Tracy profiler for memory leak detection with autocapture
+        // Tracy will connect to tracy-capture on port 8086 when available
+        _ = TracyProfiler.initialize()
+
+        // Track app startup time
+        let _ = TracyProfiler.Zone(name: "AppStartup")
+
         if !isNoteEditorSelfTestEnabled {
             do {
                 if try !singleInstanceLock.acquireOrActivateExisting() {
@@ -543,7 +550,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if !isTerminating {
-            let aliveCount = manager.terminals.filter { $0.isAlive }.count
+            // Manager may not be initialized yet if terminating during early startup
+            let aliveCount = manager?.terminals.filter { $0.isAlive }.count ?? 0
             if aliveCount > 0 {
                 let alert = NSAlert.pterm()
                 alert.messageText = "Quit pterm?"
@@ -564,7 +572,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             flushPendingSessionPersistence()
         }
         clipboardCleanupService?.stop()
-        manager.stopAll(
+        manager?.stopAll(
             preserveScrollback: config.sessionScrollBufferPersistence,
             waitForExit: true
         )
