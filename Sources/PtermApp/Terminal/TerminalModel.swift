@@ -373,6 +373,18 @@ final class TerminalModel {
         clampCursorToVisibleLineWidth()
     }
 
+    /// Full-display erases (ED 2 / ED 3) reset per-line width attributes.
+    /// Erasing cells alone keeps stale DECDWL/DECDHL flags, so a program
+    /// that leaves double-width rows behind would corrupt every subsequent
+    /// full-screen redraw. Scrolling and DECALN already reset recycled rows;
+    /// this mirrors that for full-screen clears.
+    private func resetAllLineAttributesToSingleWidth() {
+        guard !grid.hasOnlySingleWidthLines else { return }
+        for row in 0..<rows {
+            grid.setLineAttribute(.singleWidth, at: row)
+        }
+    }
+
     private func applyCharacterResize(
         rows targetRows: Int,
         cols targetCols: Int,
@@ -3093,11 +3105,13 @@ final class TerminalModel {
             for row in 0..<rows {
                 eraseRow(row, selective: false)
             }
+            resetAllLineAttributesToSingleWidth()
         case 3: // Erase scrollback (xterm extension)
             onClearScrollback?()
             for row in 0..<rows {
                 eraseRow(row, selective: false)
             }
+            resetAllLineAttributesToSingleWidth()
         default:
             break
         }

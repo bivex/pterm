@@ -2276,6 +2276,26 @@ final class TerminalModelRegressionTests: XCTestCase {
         XCTAssertEqual(harness.model.cursor.col, 0)
     }
 
+    func testTerminalModelEraseDisplayResetsStaleDoubleWidthLineAttributes() {
+        let harness = TerminalModelHarness(rows: 2, cols: 8)
+
+        harness.feed("\u{1B}#6")
+        harness.feed("\u{1B}[2J")
+        for row in 0..<2 {
+            XCTAssertEqual(harness.model.grid.lineAttribute(at: row), .singleWidth)
+        }
+
+        // A full-screen redraw after the clear must address the full width.
+        harness.feed("ABCDEFGH")
+        XCTAssertEqual(harness.model.grid.cell(at: 0, col: 7).codepoint, 0x48)
+
+        harness.feed("\u{1B}#3")
+        harness.feed("\u{1B}[3J")
+        for row in 0..<2 {
+            XCTAssertEqual(harness.model.grid.lineAttribute(at: row), .singleWidth)
+        }
+    }
+
     func testTerminalModelDECCOLMAndDECSCNMUpdateResizeAndReverseVideoState() {
         let harness = TerminalModelHarness(rows: 24, cols: 80)
         var resizeRequests: [(Int, Int)] = []
